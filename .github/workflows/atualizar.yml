@@ -1,0 +1,48 @@
+name: Atualizar meses
+
+on:
+  schedule:
+    - cron: "0 12 6 * *"  # dia 6, quando o Lichess já publicou o mês anterior
+  workflow_dispatch:
+    inputs:
+      desde:
+        description: "Primeiro mês (AAAA-MM)"
+        default: "2013-01"
+      max:
+        description: "No máximo quantos meses nesta rodada"
+        default: "12"
+
+permissions:
+  contents: write
+
+jobs:
+  atualizar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar
+        run: pip install -e ".[dev]"
+
+      - name: Testes
+        run: pytest -q
+
+      - name: Processar meses que faltam
+        run: python -m aberturas pendentes --desde "${{ inputs.desde || '2013-01' }}" --max "${{ inputs.max || '12' }}"
+
+      - name: Commit
+        run: |
+          git add meses
+          if git diff --cached --quiet; then
+            echo "Nada novo."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Atualiza meses até $(python -c "import json; print(json.load(open('meses/indice.json'))['ultimo'])")"
+          git push
