@@ -56,3 +56,13 @@ jobs:
             git pull -q --rebase
             git push -q
           done
+
+      - name: Atualizar o resumo por ano
+        run: |
+          python -m aberturas evolucao
+          git add evolucao.json
+          if ! git diff --cached --quiet; then
+            git commit -q -m "Atualiza evolucao.json"
+            git pull -q --rebase
+            git push -q
+          fi

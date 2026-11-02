@@ -68,6 +68,19 @@ Aberturas com poucas partidas no mês (menos de 50 na família, menos de 1000 na
 variante) ficam de fora, senão o arquivo do mês passa de 1,5 MB só com variantes que
 quase ninguém joga. `meses/indice.json` lista os meses prontos.
 
+Somados, os meses passam de 150 MB, pesado demais para o site ler a cada visita. Para ver
+como a popularidade das aberturas mudou, `evolucao.json` junta tudo por ano: quantas
+partidas cada abertura teve em cada ritmo e faixa, e o total de partidas de cada um. Só
+entram as aberturas que chegaram a 1% das partidas de algum ano, ritmo e faixa.
+
+Um cuidado aqui: entre 2017 e 2021 o Lichess revisou os nomes das aberturas. Saíram coisas
+como "Philidor Defense #3", "Queen's Gambit Refused" e "Indian Game", e o Petrov virou
+"Russian Game". O resumo junta os nomes antigos à família atual (a lista está em
+`evolucao.py`). Não dá para consertar tudo, porque algumas partidas mudaram de família de
+verdade, e não só de nome: o Gambito Englund, por exemplo, quase dobra de um mês para o
+outro em dezembro de 2020. Nas aberturas grandes, a diferença que sobra é de alguns
+décimos de ponto percentual.
+
 ## Usando
 
 Requer Python 3.11 ou mais novo. A única dependência é o `zstandard`.
@@ -80,12 +93,13 @@ python -m aberturas mes 2026-09                     # amostra de 1 GB de um mês
 python -m aberturas mes 2026-09 --limite-gb 0       # o mês inteiro (demora)
 python -m aberturas mes 2026-09 --arquivo x.pgn.zst # de um arquivo já baixado
 python -m aberturas pendentes --desde 2013-01       # todos os meses que faltam
+python -m aberturas evolucao                        # refaz o evolucao.json
 ```
 
 No meu computador, 1 GB levou uns 16 minutos, quase tudo esperando o download. No
 GitHub Actions o mesmo mês sai em uns 2 minutos.
 
 Um GitHub Action roda todo dia 6, quando o mês anterior já saiu, e faz commit do
-arquivo novo. Disparado na mão, ele preenche o histórico do mais novo para o mais
+arquivo novo e o `evolucao.json` refeito. Disparado na mão, ele preenche o histórico do mais novo para o mais
 antigo, com um commit por mês: se a rodada estourar o limite de tempo do GitHub, o que
 já foi feito fica salvo e a próxima continua de onde parou.

@@ -3,6 +3,7 @@
     python -m aberturas mes 2026-09                  amostra de um mês (1 GB compactado)
     python -m aberturas mes 2026-09 --arquivo x.zst  a partir de um arquivo baixado
     python -m aberturas pendentes --desde 2013-01    todos os meses que ainda faltam
+    python -m aberturas evolucao                     junta os meses por ano em evolucao.json
 """
 
 import argparse
@@ -11,7 +12,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import lichess
+from . import evolucao, lichess
 from .contagem import CHAVES, Contagem
 from .pgn import cabecalhos
 
@@ -59,11 +60,18 @@ def main(argv=None) -> None:
     pend.add_argument("--desde", default="2013-01")
     pend.add_argument("--max", type=int, help="no máximo quantos meses nesta rodada")
 
+    sub.add_parser("evolucao", help="junta os meses prontos por ano em evolucao.json")
+
     for s in (m, pend):
         s.add_argument("--limite-gb", type=float, default=1.0,
                        help="quanto ler de cada arquivo compactado (0 = inteiro)")
 
     args = p.parse_args(argv)
+    if args.comando == "evolucao":
+        resumo = evolucao.resumir(PASTA)
+        evolucao.salvar(resumo, Path("evolucao.json"))
+        print(f"evolucao.json: {len(resumo['aberturas'])} aberturas, {resumo['anos'][0]} a {resumo['ate']}")
+        return
     limite = args.limite_gb or None
 
     if args.comando == "mes":
