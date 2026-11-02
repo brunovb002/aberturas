@@ -1,103 +1,133 @@
-"""Capa do projeto: as aberturas mais jogadas no blitz, pontos acima do esperado por faixa de rating.
+"""Capa do projeto: o tabuleiro depois da abertura mais jogada da amostra, com os lances em setas.
 
     python scripts/gerar_capa.py meses capa.png
 
 Precisa do Pillow (pip install pillow). Gera 900x1200 (3:4), o formato dos cards do site.
+A abertura vem dos dados; os lances de cada uma estão em LANCES, então se a mais jogada
+mudar para uma que não está lá, é só acrescentar.
 """
 
 import json
+import math
 import sys
-from collections import defaultdict
+from collections import Counter
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
 S = 2  # desenha em 2x e reduz no fim, para as linhas ficarem suaves
 W, H = 900 * S, 1200 * S
-ESQ, DIR, TOPO, BASE_Y = 90 * S, 90 * S, 200 * S, 360 * S
+CASA = W // 8
 VERDE = (47, 93, 80)
-FONTE = "C:/Windows/Fonts/consola.ttf"
-RITMO = "blitz"
-FAIXAS = list(range(800, 2401, 200))
-QUANTAS = 10
-MIN_PARTIDAS = 300
+CLARA, ESCURA = (226, 222, 204), (98, 140, 118)
+SETA = (232, 163, 61, 210)
+PECAS = "C:/Windows/Fonts/seguisym.ttf"
+SERIF = "C:/Windows/Fonts/georgia.ttf"
+MONO = "C:/Windows/Fonts/consola.ttf"
+
+# Lances de cada abertura (origem e destino) e como aparecem escritos.
+LANCES = {
+    "Sicilian Defense": (["e2e4", "c7c5"], "1. e4 c5"),
+    "Queen's Pawn Game": (["d2d4", "d7d5"], "1. d4 d5"),
+    "French Defense": (["e2e4", "e7e6"], "1. e4 e6"),
+    "Caro-Kann Defense": (["e2e4", "c7c6"], "1. e4 c6"),
+    "Scandinavian Defense": (["e2e4", "d7d5"], "1. e4 d5"),
+    "Italian Game": (["e2e4", "e7e5", "g1f3", "b8c6", "f1c4"], "1. e4 e5 2. Nf3 Nc6 3. Bc4"),
+}
+
+# Glifo cheio para os dois lados; a cor do preenchimento diz de quem é a peça.
+GLIFOS = {"r": "♜", "n": "♞", "b": "♝", "q": "♛", "k": "♚", "p": "♟"}
+INICIAL = ["rnbqkbnr", "pppppppp", "", "", "", "", "PPPPPPPP", "RNBQKBNR"]
 
 
-def mistura(a, b, t):
-    return tuple(round(x + (y - x) * t) for x, y in zip(a, b))
+def mais_jogada(pasta: Path) -> str:
+    total = Counter()
+    for arquivo in pasta.glob("[0-9][0-9][0-9][0-9]-[0-9][0-9].json"):
+        for nome, _, _, b, e, p, _ in json.loads(arquivo.read_text(encoding="utf-8"))["familias"]:
+            total[nome] += b + e + p
+    return next(n for n, _ in total.most_common() if n in LANCES)
 
 
-def somar(pasta: Path):
-    """Soma os meses: por abertura e faixa, e a base com todas as partidas da faixa."""
-    aberturas = defaultdict(lambda: defaultdict(lambda: [0, 0, 0, 0.0]))
-    base = defaultdict(lambda: [0, 0, 0, 0.0])
-    for arquivo in sorted(pasta.glob("[0-9][0-9][0-9][0-9]-[0-9][0-9].json")):
-        for nome, ritmo, faixa, b, e, p, esp in json.loads(arquivo.read_text(encoding="utf-8"))["familias"]:
-            if ritmo != RITMO:
-                continue
-            for c in (aberturas[nome][faixa], base[faixa]):
-                c[0] += b; c[1] += e; c[2] += p; c[3] += esp
-    return aberturas, base
+def casa(c: str) -> tuple[int, int]:
+    """'e4' -> (coluna, linha na imagem), com as brancas embaixo."""
+    return ord(c[0]) - ord("a"), 8 - int(c[1])
 
 
-def acima(c, b):
-    """Pontos das brancas menos o esperado pelo Elo menos a vantagem típica da faixa, em p.p."""
-    n, nb = sum(c[:3]), sum(b[:3])
-    return 100 * ((c[0] + c[1] / 2 - c[3]) / n - (b[0] + b[1] / 2 - b[3]) / nb)
+def centro(c: str) -> tuple[float, float]:
+    col, lin = casa(c)
+    return (col + 0.5) * CASA, (lin + 0.5) * CASA
+
+
+def seta(d: ImageDraw.ImageDraw, de: str, para: str) -> None:
+    """Seta no estilo dos tabuleiros online: haste grossa e ponta larga, parando antes do centro."""
+    (x0, y0), (x1, y1) = centro(de), centro(para)
+    ang = math.atan2(y1 - y0, x1 - x0)
+    cos, sen = math.cos(ang), math.sin(ang)
+    xf, yf = x1 - 0.12 * CASA * cos, y1 - 0.12 * CASA * sen
+    xb, yb = xf - 0.42 * CASA * cos, yf - 0.42 * CASA * sen
+    xi, yi = x0 + 0.28 * CASA * cos, y0 + 0.28 * CASA * sen
+    d.line([(xi, yi), (xb, yb)], fill=SETA, width=round(0.16 * CASA))
+    abre = 0.3 * CASA
+    d.polygon([(xf, yf), (xb - abre * sen, yb + abre * cos), (xb + abre * sen, yb - abre * cos)], fill=SETA)
+
+
+def quadrado(d: ImageDraw.ImageDraw, col: int, lin: int, cor) -> None:
+    d.rectangle([col * CASA, lin * CASA, (col + 1) * CASA - 1, (lin + 1) * CASA - 1], fill=cor)
 
 
 def main(pasta: Path, saida: Path) -> None:
-    aberturas, base = somar(pasta)
-    total = lambda nome: sum(sum(c[:3]) for c in aberturas[nome].values())
-    top = sorted(aberturas, key=total, reverse=True)[:QUANTAS]
-    linhas = {
-        nome: [(i, acima(aberturas[nome][f], base[f])) for i, f in enumerate(FAIXAS)
-               if sum(aberturas[nome][f][:3]) >= MIN_PARTIDAS]
-        for nome in top
-    }
-    lim = max(abs(v) for pts in linhas.values() for _, v in pts) + 0.5
-    x = lambda i: ESQ + i / (len(FAIXAS) - 1) * (W - ESQ - DIR)
-    y = lambda v: TOPO + (lim - v) / (2 * lim) * (H - TOPO - BASE_Y)
+    abertura = mais_jogada(pasta)
+    lances, notacao = LANCES[abertura]
 
-    img = Image.new("RGB", (W, H))
+    tab = [list(l.ljust(8)) for l in INICIAL]
+    for lance in lances:
+        (c0, l0), (c1, l1) = casa(lance[:2]), casa(lance[2:])
+        tab[l1][c1], tab[l0][c0] = tab[l0][c0], " "
+
+    img = Image.new("RGBA", (W, H))
     d = ImageDraw.Draw(img)
-    claro, escuro = mistura(VERDE, (255, 255, 255), 0.25), mistura(VERDE, (0, 0, 0), 0.35)
-    for i in range(H):
-        t = i / H
-        d.line([(0, i), (W, i)], fill=mistura(claro, VERDE, t / 0.55) if t < 0.55 else mistura(VERDE, escuro, (t - 0.55) / 0.45))
-
-    camada = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    c = ImageDraw.Draw(camada)
-    fonte = ImageFont.truetype(FONTE, 28 * S)
-
-    # Tabuleiro discreto ao fundo: 8 colunas de casas alternadas, só um tom acima do verde.
-    casa = (W - ESQ - DIR) / 8
-    for lin in range(int((H - TOPO - BASE_Y) / casa)):
+    # Embaixo do tabuleiro, o verde do card escurecendo até a base.
+    for i in range(W, H):
+        t = (i - W) / (H - W)
+        d.line([(0, i), (W, i)], fill=tuple(round(v * (1 - 0.35 * t)) for v in VERDE))
+    for lin in range(8):
         for col in range(8):
-            if (lin + col) % 2 == 0:
-                x0, y0 = ESQ + col * casa, TOPO + lin * casa
-                c.rectangle([x0, y0, x0 + casa, y0 + casa], fill=(255, 255, 255, 14))
+            quadrado(d, col, lin, CLARA if (lin + col) % 2 == 0 else ESCURA)
 
-    c.line([(ESQ, y(0)), (W - DIR, y(0))], fill=(255, 255, 255, 110), width=2 * S)
-    destaque = top[0]
-    for nome in top[1:]:
-        c.line([(x(i), y(v)) for i, v in linhas[nome]], fill=(255, 255, 255, 110), width=3 * S, joint="curve")
-    pts = [(x(i), y(v)) for i, v in linhas[destaque]]
-    c.line(pts, fill=(255, 255, 255, 255), width=8 * S, joint="curve")
-    for px, py in pts:
-        c.ellipse([px - 9 * S, py - 9 * S, px + 9 * S, py + 9 * S], fill=(255, 255, 255, 255))
+    # Casas de origem e destino marcadas de leve, como num tabuleiro online.
+    marca = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    for lance in lances:
+        for c in (lance[:2], lance[2:]):
+            quadrado(ImageDraw.Draw(marca), *casa(c), (232, 163, 61, 70))
+    img = Image.alpha_composite(img, marca)
 
-    c.text((ESQ, TOPO - 40 * S), "<1000", font=fonte, fill=(255, 255, 255, 150), anchor="ls")
-    c.text((W - DIR, TOPO - 40 * S), "2400+", font=fonte, fill=(255, 255, 255, 150), anchor="rs")
+    # Setas por baixo das peças, para não cobrir quem chegou na casa.
+    setas = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    for lance in lances:
+        seta(ImageDraw.Draw(setas), lance[:2], lance[2:])
+    img = Image.alpha_composite(img, setas)
 
-    titulo = ImageFont.truetype(FONTE, 66 * S)
-    c.text((ESQ, H - 235 * S), "aberturas", font=titulo, fill=(255, 255, 255, 255))
-    c.text((ESQ, H - 160 * S), f"{destaque} em destaque", font=fonte, fill=(255, 255, 255, 200))
-    c.text((ESQ, H - 115 * S), "Lichess · blitz · acima do esperado", font=fonte, fill=(255, 255, 255, 170))
+    d = ImageDraw.Draw(img)
+    fonte = ImageFont.truetype(PECAS, round(CASA * 0.82))
+    for lin in range(8):
+        for col in range(8):
+            p = tab[lin][col]
+            if p != " ":
+                d.text(((col + 0.5) * CASA, (lin + 0.54) * CASA), GLIFOS[p.lower()], font=fonte, anchor="mm",
+                       fill=(250, 248, 240) if p.isupper() else (28, 30, 30),
+                       stroke_width=round(CASA * 0.03), stroke_fill=(28, 30, 30))
 
-    img = Image.alpha_composite(img.convert("RGBA"), camada).convert("RGB")
+    # Texto com transparência de verdade: desenha em modo RGBA sobre a imagem já sem canal alfa.
+    img = img.convert("RGB")
+    d = ImageDraw.Draw(img, "RGBA")
+    esq = 90 * S
+    d.text((esq, H - 205 * S), "aberturas", font=ImageFont.truetype(SERIF, 84 * S), fill=(255, 255, 255))
+    mono = ImageFont.truetype(MONO, 28 * S)
+    d.text((esq, H - 100 * S), f"{notacao} · {abertura}", font=mono, fill=(255, 255, 255, 220))
+    d.text((esq, H - 58 * S), "a mais jogada no Lichess", font=mono, fill=(255, 255, 255, 160))
+
     img.resize((W // S, H // S), Image.LANCZOS).save(saida, optimize=True)
-    print(f"Capa salva em {saida} ({len(top)} aberturas, de -{lim:.1f} a +{lim:.1f} p.p.)")
+    print(f"Capa salva em {saida} ({abertura}, {notacao})")
 
 
 if __name__ == "__main__":
