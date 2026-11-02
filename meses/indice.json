@@ -1,5 +1,9 @@
 {
  "meses": {
+  "2020-07": {
+   "partidas": 3519253,
+   "completo": false
+  },
   "2020-08": {
    "partidas": 3550387,
    "completo": false
