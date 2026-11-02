@@ -11,7 +11,11 @@
   "2026-09": {
    "partidas": 3242354,
    "completo": false
+  },
+  "2026-10": {
+   "partidas": 3240755,
+   "completo": false
   }
  },
- "ultimo": "2026-09"
+ "ultimo": "2026-10"
 }
