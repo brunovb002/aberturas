@@ -82,9 +82,10 @@ python -m aberturas mes 2026-09 --arquivo x.pgn.zst # de um arquivo já baixado
 python -m aberturas pendentes --desde 2013-01       # todos os meses que faltam
 ```
 
-No meu computador, 1 GB levou uns 16 minutos, quase tudo esperando o download. A leitura
-em si dá uns 3 milhões de partidas.
+No meu computador, 1 GB levou uns 16 minutos, quase tudo esperando o download. No
+GitHub Actions o mesmo mês sai em uns 2 minutos.
 
 Um GitHub Action roda todo dia 6, quando o mês anterior já saiu, e faz commit do
-arquivo novo. Ele também pode ser disparado na mão para preencher o histórico, alguns
-meses por vez.
+arquivo novo. Disparado na mão, ele preenche o histórico do mais novo para o mais
+antigo, com um commit por mês: se a rodada estourar o limite de tempo do GitHub, o que
+já foi feito fica salvo e a próxima continua de onde parou.

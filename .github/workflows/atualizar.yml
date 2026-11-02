@@ -10,15 +10,18 @@ on:
         default: "2013-01"
       max:
         description: "No máximo quantos meses nesta rodada"
-        default: "12"
+        default: "200"
 
 permissions:
   contents: write
 
+# Duas rodadas ao mesmo tempo brigariam pelo push.
+concurrency: atualizar-meses
+
 jobs:
   atualizar:
     runs-on: ubuntu-latest
-    timeout-minutes: 340
+    timeout-minutes: 350
     steps:
       - uses: actions/checkout@v4
 
@@ -32,17 +35,24 @@ jobs:
       - name: Testes
         run: pytest -q
 
-      - name: Processar meses que faltam
-        run: python -m aberturas pendentes --desde "${{ inputs.desde || '2013-01' }}" --max "${{ inputs.max || '12' }}"
-
-      - name: Commit
+      # Um commit por mês: se a rodada estourar o tempo, o que já foi feito fica salvo
+      # e a próxima continua de onde parou.
+      - name: Processar os meses que faltam
+        env:
+          DESDE: ${{ inputs.desde || '2013-01' }}
+          MAX: ${{ inputs.max || '200' }}
         run: |
-          git add meses
-          if git diff --cached --quiet; then
-            echo "Nada novo."
-            exit 0
-          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "Atualiza meses até $(python -c "import json; print(json.load(open('meses/indice.json'))['ultimo'])")"
-          git push
+          for i in $(seq 1 "$MAX"); do
+            python -m aberturas pendentes --desde "$DESDE" --max 1
+            git add meses
+            if git diff --cached --quiet; then
+              echo "Nada novo."
+              break
+            fi
+            mes=$(git diff --cached --name-only --diff-filter=A -- 'meses/????-??.json' | head -1 | xargs -r basename -s .json)
+            git commit -q -m "Adiciona ${mes:-meses}"
+            git pull -q --rebase
+            git push -q
+          done
