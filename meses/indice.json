@@ -1,5 +1,9 @@
 {
  "meses": {
+  "2017-08": {
+   "partidas": 3416944,
+   "completo": false
+  },
   "2017-09": {
    "partidas": 3424624,
    "completo": false
