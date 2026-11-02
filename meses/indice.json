@@ -1,5 +1,9 @@
 {
  "meses": {
+  "2013-10": {
+   "partidas": 409843,
+   "completo": true
+  },
   "2013-11": {
    "partidas": 485223,
    "completo": true
