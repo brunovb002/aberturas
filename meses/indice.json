@@ -1,5 +1,9 @@
 {
  "meses": {
+  "2023-10": {
+   "partidas": 3226407,
+   "completo": false
+  },
   "2023-11": {
    "partidas": 3266909,
    "completo": false
